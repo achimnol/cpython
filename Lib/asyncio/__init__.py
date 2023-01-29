@@ -34,7 +34,6 @@ __all__ = (base_events.__all__ +
            queues.__all__ +
            streams.__all__ +
            subprocess.__all__ +
-           supervisor.__all__ +
            tasks.__all__ +
            threads.__all__ +
            timeouts.__all__ +
