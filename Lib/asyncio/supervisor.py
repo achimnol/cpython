@@ -55,7 +55,10 @@ class Supervisor:
         if (exc is not None and
                 self._is_base_error(exc) and
                 self._base_error is None):
+            # SystemExit or KeyboardInterrupt in "async with"
+            # so we cancel other tasks.
             self._base_error = exc
+            self._abort()
 
         propagate_cancellation_error = \
             exc if et is exceptions.CancelledError else None
@@ -170,7 +173,8 @@ class Supervisor:
             return
 
         self._errors.append(exc)
-        if self._is_base_error(exc) and self._base_error is None:
+        _is_base_error = self._is_base_error(exc)
+        if _is_base_error and self._base_error is None:
             self._base_error = exc
 
         if self._parent_task.done():
@@ -184,19 +188,21 @@ class Supervisor:
             })
             return
 
-        if not self._aborting and not self._parent_cancel_requested:
-            # If parent task *is not* being cancelled, it means that we want
-            # to manually cancel it to abort whatever is being run right now
-            # in the TaskGroup.  But we want to mark parent task as
-            # "not cancelled" later in __aexit__.  Example situation that
-            # we need to handle:
+        if _is_base_error and not self._aborting and not self._parent_cancel_requested:
+            # For base SystemExit and KeyboardInterrupt ONLY, if parent task
+            # *is not* being cancelled, it means that we want to manually cancel
+            # it to abort whatever is being run right now in the Supervisor.
+            # But we want to mark parent task as "not cancelled" later in __aexit__.
+            # Example situation that we need to handle:
             #
             #    async def foo():
             #        try:
             #            async with Supervisor() as s:
             #                s.create_task(crash_soon())
             #                await something  # <- this needs to be waited
-            #                                 #    by the Supervisor
+            #                                 #    by the Supervisor, unless
+            #                                 #    crash_soon() raises either
+            #                                 #    SystemExit or KeyboardInterrupt
             #        except Exception:
             #            # Ignore any exceptions raised in the Supervisor
             #            pass
@@ -204,4 +210,4 @@ class Supervisor:
             #                                 # after TaskGroup is finished.
             self._abort()
             self._parent_cancel_requested = True
-
+            self._parent_task.cancel()
