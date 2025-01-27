@@ -16,6 +16,7 @@ from .runners import *
 from .queues import *
 from .streams import *
 from .subprocess import *
+from .supervisor import *
 from .tasks import *
 from .taskgroups import *
 from .timeouts import *
